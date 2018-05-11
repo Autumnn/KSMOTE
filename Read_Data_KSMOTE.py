@@ -1,108 +1,24 @@
 from __future__ import print_function
 from matplotlib import pyplot as plt
 import numpy as np
+import Read_Data as RD
 from sklearn import preprocessing
 from sklearn.model_selection import StratifiedKFold
 
-def Initialize_Data(dir):
-    Num_lines = len(open(dir, 'r').readlines())
-    num_columns = 0
-    data_info_lines = 0
-    with open(dir, "r") as get_info:
-        print("name", get_info.name)
-        for line in get_info:
-            if line.find("\"RFHRS\"") == 0:
-                data_info_lines += 1
-            else:
-                columns = line.split(",")
-                num_columns = len(columns)
-                break
-
-    global Num_Samples
-    Num_Samples = Num_lines - data_info_lines
-    print(Num_Samples)
-    global Num_Features
-    Num_Features = num_columns - 1
-
-    global Features
-    Features = np.ones((Num_Samples, Num_Features))
-    global Labels
-    Labels = np.ones((Num_Samples, 1))
-
-    global Num_positive
-    Num_positive = 0
-    global Num_negative
-    Num_negative = 0
-
-    with open(dir, "r") as data_file:
-        print("Read Data", data_file.name)
-        l = 0
-        for line in data_file:
-            l += 1
-            if l > data_info_lines:
-                # print(line)
-                row = line.split(",")
-                length_row = len(row)
-                # print('Row length',length_row)
-                # print(row[0])
-                for i in range(length_row):
-                    if i < length_row - 1:
-                        Features[l - data_info_lines - 1][i] = row[i]
-                        # print(Features[l-14][i])
-                    else:
-                        attri = row[i].strip()
-
-#                        if attri == '\"Stage 1\"' or attri == '\"Stage 2\"':        # A
-                        if attri == '\"Stage 1\"':        # B
-                            Labels[l - data_info_lines - 1][0] = 0
-                            Num_negative += 1
-                            # print(Labels[l-14][0])
-                        else:
-                            Labels[l - data_info_lines - 1][0] = 1
-                            Num_positive += 1
-
-#    print("Number of Positive: ", Num_positive)
-    global Positive_Feature
-    Positive_Feature = np.ones((Num_positive, Num_Features))
-#    print("Num of Negative: ", Num_negative)
-    global Negative_Feature
-    Negative_Feature = np.ones((Num_negative, Num_Features))
-    index_positive = 0
-    index_negative = 0
-
-    for i in range(Num_Samples):
-        if Labels[i] == 1:
-            Positive_Feature[index_positive] = Features[i]
-            index_positive += 1
-        else:
-            Negative_Feature[index_negative] = Features[i]
-            index_negative += 1
-
-    print("Read Completed")
-
-def get_feature():
-    return Features
-
-def get_label():
-    return  Labels
-
-def get_positive_feature():
-    return Positive_Feature
-
-def get_negative_feature():
-    return Negative_Feature
 
 dir = "KSMOTE_IECON15_InputData.csv"
-Initialize_Data(dir)
+RD.Initialize_Data(dir)
 name = dir.split(".")[0]
 
-print(Positive_Feature[0])
-print(Positive_Feature.shape)
-print(Negative_Feature[0])
-print(Negative_Feature.shape)
+print(RD.Positive_Feature[0])
+print(RD.Positive_Feature.shape)
+print(RD.Stage_1_Feature[0])
+print(RD.Stage_1_Feature.shape)
+print(RD.Stage_2_Feature[0])
+print(RD.Stage_2_Feature.shape)
 
-npy_name = name + ".npz"
-np.savez(npy_name, P_F = Positive_Feature, N_F = Negative_Feature)
+npy_name = name + "_M.npz"
+np.savez(npy_name, P_F = RD.Positive_Feature, N_1_F = RD.Stage_1_Feature, N_2_F = RD.Stage_2_Feature)
 file = npy_name
 
 print("File Name: ", file)
@@ -113,14 +29,17 @@ r = np.load(dir)
 Positive_Features = r["P_F"]
 Num_Positive = Positive_Features.shape[0]
 Positive_Labels = np.linspace(1,1,Num_Positive)
-Negative_Features = r["N_F"]
-Num_Negative = Negative_Features.shape[0]
-Negative_Labels = np.linspace(0,0,Num_Negative)
+Stage_1_Features = r["N_1_F"]
+Num_S_1 = Stage_1_Features.shape[0]
+Stage_1_Labels = np.linspace(0,0,Num_S_1)
+Stage_2_Features = r["N_2_F"]
+Num_S_2 = Stage_2_Features.shape[0]
+Stage_2_Labels = np.linspace(-1,-1,Num_S_2)
 
-Features = np.concatenate((Positive_Features, Negative_Features))
-Labels = np.concatenate((Positive_Labels, Negative_Labels))
+Features = np.concatenate((Positive_Features, Stage_1_Features, Stage_2_Features))
+Labels = np.concatenate((Positive_Labels, Stage_1_Labels, Stage_2_Labels))
 
-Num_Cross_Folders = 5
+Num_Cross_Folders = 3
 min_max_scalar = preprocessing.MinMaxScaler()
 Re_Features = min_max_scalar.fit_transform(Features)
 
@@ -134,10 +53,14 @@ for train_index, test_index in skf.split(Re_Features, Labels):
 
     Positive_Feature_train = Feature_train[np.where(Label_train == 1)]
     Positive_Feature_test = Feature_test[np.where(Label_test == 1)]
-    Negative_Features_train = Feature_train[np.where(Label_train == 0)]
-    Negative_Features_test = Feature_test[np.where(Label_test == 0)]
+    Stage_1_Features_train = Feature_train[np.where(Label_train == 0)]
+    Stage_1_Features_test = Feature_test[np.where(Label_test == 0)]
+    Stage_2_Features_train = Feature_train[np.where(Label_train == -1)]
+    Stage_2_Features_test = Feature_test[np.where(Label_test == -1)]
 
-    saved_name = name + "_" + str(i) + "_Cross_Folder.npz"
-    np.savez(saved_name, P_F_tr = Positive_Feature_train, P_F_te = Positive_Feature_test, N_F_tr = Negative_Features_train, N_F_te = Negative_Features_test)
+    saved_name = name + "_" + str(i) + "_M_Cross_Folder.npz"
+    np.savez(saved_name, P_F_tr = Positive_Feature_train, P_F_te = Positive_Feature_test,
+             N_1_tr = Stage_1_Features_train, N_1_te = Stage_1_Features_test,
+             N_2_tr = Stage_2_Features_train, N_2_te = Stage_2_Features_test)
 
     i += 1
